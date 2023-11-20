@@ -2,8 +2,11 @@ package com.saimone.flappybird;
 
 import com.badlogic.gdx.ApplicationAdapter;
 import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.Texture;
+import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
+import com.badlogic.gdx.graphics.g2d.freetype.FreeTypeFontGenerator;
 import com.badlogic.gdx.math.Circle;
 import com.badlogic.gdx.math.Intersector;
 import com.badlogic.gdx.math.Rectangle;
@@ -14,22 +17,24 @@ import java.util.Random;
 public class FlappyBird extends ApplicationAdapter {
 	SpriteBatch batch;
 	Texture backgroundDay, backgroundNight;
-	Texture topTube, bottomTube;
+	Texture topPipe, bottomPipe;
 	Texture[] birds;
 	Circle birdCircle;
 	Rectangle[] topPipeRectangle;
 	Rectangle[] bottomPipeRectangle;
+	BitmapFont font;
+	Random randomGenerator;
+	FreeTypeFontGenerator generator;
 	boolean isDay = true;
 	float stateTime, dayTimer = 0;
-	int flapState = 0, gameState = 0;
-	float birdWidth, birdHeight, birdY;
+	int flapState = 0, gameState = 0, score = 0, scoringPipe = 0;
+	float birdWidth, birdHeight, birdY, birdRotation;
 	float velocity = 0, gravity = 1;
 	float gap = 800, tubeVelocity = 7;
-	float tubeWidth, tubeHeight, maxTubeOffset, distanceBetweenTubes;
+	float pipeWidth, pipeHeight, maxPipeOffset, distanceBetweenPipes;
 	int numberOfPipes = 15;
-	float[] tubeX = new float[numberOfPipes];
-	float[] tubeOffset = new float[numberOfPipes];
-	Random randomGenerator;
+	float[] pipeX = new float[numberOfPipes];
+	float[] pipeOffset = new float[numberOfPipes];
 
 	@Override
 	public void create() {
@@ -40,6 +45,13 @@ public class FlappyBird extends ApplicationAdapter {
 		topPipeRectangle = new Rectangle[numberOfPipes];
 		bottomPipeRectangle = new Rectangle[numberOfPipes];
 
+		generator = new FreeTypeFontGenerator(Gdx.files.internal("flappy-font.ttf"));
+		FreeTypeFontGenerator.FreeTypeFontParameter parameter = new FreeTypeFontGenerator.FreeTypeFontParameter();
+		parameter.size = 190;
+		parameter.color = Color.WHITE;
+		parameter.borderColor = Color.BLACK;
+		parameter.borderWidth = 1;
+		font = generator.generateFont(parameter);
 
 		birds = new Texture[3];
 		birds[0] = new Texture("yellowbird-upflap.png");
@@ -47,18 +59,19 @@ public class FlappyBird extends ApplicationAdapter {
 		birds[2] = new Texture("yellowbird-downflap.png");
 
 		birdY = Gdx.graphics.getHeight() / 2f - birds[0].getHeight() * 5 / 2f;
+		birdRotation = 0;
 
-		topTube = new Texture("pipe-green-top.png");
-		bottomTube = new Texture("pipe-green.png");
+		topPipe = new Texture("pipe-green-top.png");
+		bottomPipe = new Texture("pipe-green.png");
 
-		maxTubeOffset = Gdx.graphics.getHeight() / 2f - gap / 2 - 100;
+		maxPipeOffset = Gdx.graphics.getHeight() / 2f - gap / 2 - 100;
 
 		randomGenerator = new Random();
-		distanceBetweenTubes = Gdx.graphics.getWidth() / 1.4f;
+		distanceBetweenPipes = Gdx.graphics.getWidth() / 1.4f;
 
 		for (int i = 0; i < numberOfPipes; i++) {
-			tubeOffset[i] = (randomGenerator.nextFloat() - 0.5f) * (Gdx.graphics.getHeight() - gap - 200);
-			tubeX[i] = Gdx.graphics.getWidth() + i * distanceBetweenTubes;
+			pipeOffset[i] = (randomGenerator.nextFloat() - 0.5f) * (Gdx.graphics.getHeight() - gap - 200);
+			pipeX[i] = Gdx.graphics.getWidth() + i * distanceBetweenPipes;
 
 			topPipeRectangle[i] = new Rectangle();
 			bottomPipeRectangle[i] = new Rectangle();
@@ -71,10 +84,11 @@ public class FlappyBird extends ApplicationAdapter {
 
 		batch.begin();
 
-		tubeWidth = topTube.getWidth() * 5;
-		tubeHeight = topTube.getHeight() * 5;
+		pipeWidth = topPipe.getWidth() * 5;
+		pipeHeight = topPipe.getHeight() * 5;
 
 		batch.draw(backgroundDay, 0, 0, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
+
 		if (gameState != 0) {
 			dayTimer += Gdx.graphics.getDeltaTime();
 			if (dayTimer >= 30) {
@@ -87,28 +101,42 @@ public class FlappyBird extends ApplicationAdapter {
 				batch.draw(backgroundNight, 0, 0, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
 			}
 
-			tubeVelocity= tubeVelocity + 0.001f;
-			distanceBetweenTubes = distanceBetweenTubes + 0.04f;
+			if(pipeX[scoringPipe] < Gdx.graphics.getWidth() / 2f) {
+				score++;
+				if(scoringPipe < numberOfPipes - 1) {
+					scoringPipe++;
+				} else {
+					scoringPipe = 0;
+				}
+			}
+
+			tubeVelocity = tubeVelocity + 0.001f;
+			distanceBetweenPipes = distanceBetweenPipes + 0.04f;
 			if (Gdx.input.justTouched()) {
 				velocity = -22;
+				birdRotation = 30;
 			}
 
 			for (int i = 0; i < numberOfPipes; i++) {
-				if (tubeX[i] < -tubeWidth) {
-					tubeX[i] += numberOfPipes * distanceBetweenTubes;
+				if (pipeX[i] < -pipeWidth) {
+					pipeX[i] += numberOfPipes * distanceBetweenPipes;
 				} else {
-					tubeX[i] = tubeX[i] - tubeVelocity;
-					batch.draw(topTube, tubeX[i], Gdx.graphics.getHeight() / 2f + gap / 3 + tubeOffset[i], tubeWidth, tubeHeight);
-					batch.draw(bottomTube, tubeX[i], 0 - gap + tubeOffset[i], tubeWidth, tubeHeight);
-
-					topPipeRectangle[i] = new Rectangle(tubeX[i], Gdx.graphics.getHeight() / 2f + gap / 3 + tubeOffset[i], tubeWidth, tubeHeight);
-					bottomPipeRectangle[i] = new Rectangle(tubeX[i], 0 - gap + tubeOffset[i], tubeWidth, tubeHeight);
+					pipeX[i] = pipeX[i] - tubeVelocity;
 				}
+
+				batch.draw(topPipe, pipeX[i], Gdx.graphics.getHeight() / 2f + gap / 3 + pipeOffset[i], pipeWidth, pipeHeight);
+				batch.draw(bottomPipe, pipeX[i], 0 - gap + pipeOffset[i], pipeWidth, pipeHeight);
+
+				topPipeRectangle[i] = new Rectangle(pipeX[i] + 15, Gdx.graphics.getHeight() / 2f + gap / 3 + pipeOffset[i] + 5, pipeWidth - 30, pipeHeight - 5);
+				bottomPipeRectangle[i] = new Rectangle(pipeX[i] + 15, 0 - gap + pipeOffset[i], pipeWidth - 30, pipeHeight - 5);
 			}
 
 			if (birdY > 0 || velocity < 0) {
 				velocity = velocity + gravity;
 				birdY -= velocity;
+			}
+			if (birdRotation > -60) {
+				birdRotation = birdRotation - 1.2f;
 			}
 		} else {
 			if (Gdx.input.justTouched()) {
@@ -129,13 +157,17 @@ public class FlappyBird extends ApplicationAdapter {
 			stateTime = 0;
 		}
 
+		font.draw(batch, String.valueOf(score), Gdx.graphics.getWidth() / 2f - 41, Gdx.graphics.getHeight() / 1.2f);
+
 		birdWidth = birds[flapState].getWidth() * 5;
 		birdHeight = birds[flapState].getHeight() * 5;
 
-		batch.draw(birds[flapState], Gdx.graphics.getWidth() / 2f - birdWidth / 2, birdY, birdWidth, birdHeight);
+		batch.draw(birds[flapState], Gdx.graphics.getWidth() / 2f - birdWidth / 2, birdY,
+				birdWidth / 2, birdHeight / 2, birdWidth, birdHeight, 1, 1, birdRotation, 0, 0,
+				birds[flapState].getWidth(), birds[flapState].getHeight(), false, false);
 		batch.end();
 
-		birdCircle.set(Gdx.graphics.getWidth() / 2f, birdY + birdHeight / 2f, birdWidth / 2f);
+		birdCircle.set(Gdx.graphics.getWidth() / 2f, birdY + birdHeight / 2f, birdWidth / 2f - 10);
 		for (int i = 0; i < numberOfPipes; i++) {
 			if (Intersector.overlaps(birdCircle, topPipeRectangle[i]) || Intersector.overlaps(birdCircle, bottomPipeRectangle[i])) {
 				gameState = 0;
@@ -146,11 +178,12 @@ public class FlappyBird extends ApplicationAdapter {
 
 	@Override
 	public void dispose() {
+		generator.dispose();
 		batch.dispose();
 		backgroundDay.dispose();
 		backgroundNight.dispose();
-		topTube.dispose();
-		bottomTube.dispose();
+		topPipe.dispose();
+		bottomPipe.dispose();
 		for (Texture bird : birds) {
 			bird.dispose();
 		}
